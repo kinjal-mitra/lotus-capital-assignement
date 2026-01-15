@@ -4,6 +4,7 @@ This submission implements a strict, compiler-style interpretation of the provid
 In the system whenever the specification does not define behavior precisely, execution halts with a Python error.
 
 All unit tests pass.
+
 ---
 
 ### Part 1: ScoringEngine — Detected Errors
@@ -57,6 +58,7 @@ Result: Execution cannot proceed past earlier ambiguities.
 - Deterministic output ordering is claimed but not specified.
 
 Result: RuntimeError is raised before output emission.
+
 --- 
 
 ## Part 2: Guardrails — Detected Errors
@@ -80,6 +82,7 @@ Result: Any numeric literal triggers a ValueError.
 - Output schema validation behavior is not specified.
 
 Result: RuntimeError is raised if runtime validation is attempted.
+
 ---
 
 ### Relationship to Part 3
