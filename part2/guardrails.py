@@ -3,8 +3,7 @@ import ast
 
 class Guardrail:
     """
-    Guardrail enforcement using only standard exceptions.
-    Any undefined guardrail semantics raise RuntimeError or ValueError.
+    Guardrail enforcement
     """
 
     FORBIDDEN_IMPORTS = {"random", "time", "uuid"}

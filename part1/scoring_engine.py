@@ -3,10 +3,6 @@ import math
 
 
 class ScoringEngine:
-    """
-    Strict compiler implementation.
-    Any ambiguity or undefined behavior raises a standard Python exception.
-    """
 
     def process(self, predictions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         # Input must be a list
@@ -55,10 +51,6 @@ class ScoringEngine:
                 raise RuntimeError(
                     "Filtering condition combination (AND/OR) is not specified"
                 )
-
-                # Confidence adjustment, exclusion, clipping, and output
-                # are unreachable due to the ambiguity above and therefore
-                # intentionally not implemented.
 
         # Output ordering is not specified
         raise RuntimeError("Output ordering is not specified")
