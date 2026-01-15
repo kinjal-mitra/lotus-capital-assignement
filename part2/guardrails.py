@@ -5,11 +5,6 @@ from typing import Any, Dict, List, Set
 class Guardrail:
     """
     Validation layer that ensures generated code never violates logic boundaries.
-    
-    Specification compliance:
-    - schema_validation: input/output types match spec
-    - logic_boundaries: no hardcoded values, no conditional logic outside spec, no external API calls
-    - determinism: no random operations, reproducible outputs
     """
     
     # Imports that introduce non-determinism
@@ -26,17 +21,13 @@ class Guardrail:
     
     def static_check(self, source_code: str) -> Dict[str, Any]:
         """
-        Perform static analysis on source code to detect prohibited patterns.
+        Perform analysis on code to detect prohibited patterns.
         
         Args:
-            source_code: Python source code to analyze
+            source_code: Python code to analyze
             
         Returns:
             Dictionary with validation results:
-            {
-                "valid": bool,
-                "violations": List[str]
-            }
             
         Raises:
             SyntaxError: If source code is invalid Python
@@ -70,7 +61,6 @@ class Guardrail:
         }
     
     def _check_imports(self, tree: ast.AST) -> List[str]:
-        """Check for forbidden imports."""
         violations = []
         
         for node in ast.walk(tree):
@@ -92,7 +82,6 @@ class Guardrail:
         return violations
     
     def _check_random_operations(self, tree: ast.AST) -> List[str]:
-        """Check for random number generation or non-deterministic operations."""
         violations = []
         
         for node in ast.walk(tree):
@@ -117,7 +106,6 @@ class Guardrail:
         return violations
     
     def _check_external_api_calls(self, tree: ast.AST) -> List[str]:
-        """Check for external API calls."""
         violations = []
         
         for node in ast.walk(tree):
@@ -142,11 +130,6 @@ class Guardrail:
         return violations
     
     def _check_suspicious_conditionals(self, tree: ast.AST) -> List[str]:
-        """
-        Check for conditional logic that appears to be business logic.
-        
-        We flag conditionals with hardcoded values that might be unspecified logic.
-        """
         violations = []
         
         for node in ast.walk(tree):
@@ -161,11 +144,6 @@ class Guardrail:
         return violations
     
     def _contains_suspicious_hardcoded_logic(self, node: ast.AST) -> bool:
-        """
-        Check if a conditional contains hardcoded numeric values.
-    
-        Returns False for common patterns like None checks, boolean checks.
-        """
         if isinstance(node, ast.If):
             test = node.test
         elif isinstance(node, ast.IfExp):
@@ -191,24 +169,10 @@ class Guardrail:
         
         Args:
             data: Data to validate (typically a dict or list of dicts)
-            schema: Schema specification with structure:
-                {
-                    "type": "list" / "dict",
-                    "fields": {
-                        "field_name": {
-                            "type": "string" / "float" / "int" / "boolean",
-                            "required": bool,
-                            "range": [min, max] (optional)
-                        }
-                    }
-                }
+            schema: Schema specification defining expected structure and types
         
         Returns:
-            Dictionary with validation results:
-            {
-                "valid": bool,
-                "violations": List[str]
-            }
+            Dictionary with validation results
         """
         violations = []
         
@@ -243,7 +207,7 @@ class Guardrail:
         Args:
             data: Dictionary to validate
             fields: Field specifications
-            prefix: Prefix for error messages (e.g., "item[0]")
+            prefix: Prefix for error messages
             
         Returns:
             List of violation messages
@@ -298,10 +262,9 @@ class Guardrail:
         return violations
     
     def _check_type(self, value: Any, expected_type: str) -> bool:
-        """Check if value matches expected type string."""
         type_map = {
             "string": str,
-            "float": (float, int),  # Allow int for float fields
+            "float": (float, int),
             "int": int,
             "boolean": bool,
             "bool": bool
@@ -316,13 +279,6 @@ class Guardrail:
     def check_no_hardcoded_values(self, source_code: str, allowed_constants: Set[Any] = None) -> Dict[str, Any]:
         """
         Check for hardcoded values that aren't part of the spec.
-        
-        Args:
-            source_code: Python source code to analyze
-            allowed_constants: Set of allowed constant values (e.g., {0.3, 0.5, -3.0, 3.0} from spec)
-            
-        Returns:
-            Dictionary with validation results
         """
         if allowed_constants is None:
             allowed_constants = set()

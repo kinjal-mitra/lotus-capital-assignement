@@ -3,17 +3,12 @@ import math
 
 
 class ScoringEngine:
-    """
-    ScoringEngine v1.0.0
-    Normalizes and scores predictions based on mathematical rules.
-    
+    """    
     Implements exact logic from YAML specification.
     """
     
     def process(self, predictions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Process predictions according to specification.
-        
+        """        
         Args:
             predictions: List of prediction dictionaries matching input schema
             
@@ -54,9 +49,7 @@ class ScoringEngine:
         return results
     
     def _process_sector(self, sector: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Process all predictions within a single sector.
-        
+        """       
         Args:
             sector: Sector name
             items: All predictions in this sector
@@ -100,17 +93,8 @@ class ScoringEngine:
         
         return sector_results
     
-    def _process_item(
-        self, 
-        item: Dict[str, Any], 
-        sector: str,
-        sector_mean: float,
-        sector_stddev: float,
-        use_zero_normalization: bool
-    ) -> Dict[str, Any]:
-        """
-        Process a single prediction item.
-        
+    def _process_item(self, item: Dict[str, Any], sector: str,sector_mean: float,sector_stddev: float,use_zero_normalization: bool) -> Dict[str, Any]:
+        """       
         Args:
             item: Input prediction
             sector: Sector name
@@ -122,21 +106,15 @@ class ScoringEngine:
             Processed prediction matching output schema
         """
         # Step 1: Normalization (z-score)
-        # Formula: (raw_score - sector_mean) / sector_stddev
         if use_zero_normalization:
             normalized_score = 0.0
         else:
             normalized_score = (item["raw_score"] - sector_mean) / sector_stddev
         
         # Step 2: Confidence adjustment
-        # Rule: normalized_score * confidence
         adjusted_score = normalized_score * item["confidence"]
         
         # Step 3: Filtering
-        # Conditions (both must be satisfied, else exclude):
-        #   - confidence >= 0.3
-        #   - abs(normalized_score) >= 0.5
-        # Action: exclude
         excluded = False
         exclusion_reason = None
         
@@ -154,7 +132,6 @@ class ScoringEngine:
             exclusion_reason = "; ".join(reasons)
         
         # Step 4: Output bounds clipping
-        # Min: -3.0, Max: 3.0, Clip: true
         final_score = max(-3.0, min(3.0, adjusted_score))
         
         # Construct output matching schema
@@ -167,9 +144,7 @@ class ScoringEngine:
         }
     
     def _matches_input_schema(self, item: Any) -> bool:
-        """
-        Validate that an item matches the input schema.
-        
+        """        
         Input schema:
             - ticker: string
             - raw_score: float

@@ -4,10 +4,8 @@ from scoring_engine import ScoringEngine
 
 
 class TestScoringEngineNormalCases:
-    """Test normal operation cases."""
     
     def test_basic_two_sector_processing(self):
-        """Test basic processing with two sectors."""
         engine = ScoringEngine()
         data = [
             {"ticker": "AAPL", "raw_score": 2.0, "confidence": 0.8, "sector": "tech"},
@@ -24,7 +22,6 @@ class TestScoringEngineNormalCases:
         assert all("sector" in r for r in results)
     
     def test_normalization_calculation_exact(self):
-        """Test z-score normalization produces correct values."""
         engine = ScoringEngine()
         # Scores: 1, 2, 3 -> mean=2, variance=2/3, stddev=sqrt(2/3)~0.8165
         data = [
@@ -43,7 +40,7 @@ class TestScoringEngineNormalCases:
         # normalized_score for A: (1-2)/stddev = -1/stddev ~ -1.2247
         # With confidence=1.0, final_score = normalized_score (before clipping)
         expected_a = (1.0 - mean) / stddev
-        expected_b = (2.0 - mean) / stddev  # Should be 0
+        expected_b = (2.0 - mean) / stddev  # 0
         expected_c = (3.0 - mean) / stddev
         
         result_a = next(r for r in results if r["ticker"] == "A")
@@ -55,7 +52,6 @@ class TestScoringEngineNormalCases:
         assert abs(result_c["final_score"] - expected_c) < 0.0001
     
     def test_confidence_adjustment_applied(self):
-        """Test confidence multiplier reduces final score."""
         engine = ScoringEngine()
         data = [
             {"ticker": "A", "raw_score": 1.0, "confidence": 1.0, "sector": "tech"},
@@ -76,7 +72,6 @@ class TestScoringEngineNormalCases:
         assert abs(score_b_magnitude - score_a_magnitude * 0.5) < 0.0001
     
     def test_filtering_excludes_low_confidence(self):
-        """Test items with confidence < 0.3 are excluded."""
         engine = ScoringEngine()
         data = [
             {"ticker": "A", "raw_score": 1.0, "confidence": 0.2, "sector": "tech"},
@@ -94,7 +89,6 @@ class TestScoringEngineNormalCases:
         assert result_b["exclusion_reason"] is None
     
     def test_filtering_excludes_low_magnitude(self):
-        """Test items with abs(normalized_score) < 0.5 are excluded."""
         engine = ScoringEngine()
         # Create scores very close together so normalized scores are small
         data = [
@@ -110,7 +104,6 @@ class TestScoringEngineNormalCases:
         assert all("normalized_score" in r["exclusion_reason"] for r in results)
     
     def test_filtering_and_logic_both_conditions_must_pass(self):
-        """Test that BOTH conditions must be satisfied (AND logic)."""
         engine = ScoringEngine()
         data = [
             # Passes confidence, fails magnitude
@@ -139,7 +132,6 @@ class TestScoringEngineNormalCases:
         assert result_map["E"]["excluded"] is False
     
     def test_output_clipping_at_bounds(self):
-        """Test final scores are clipped to [-3.0, 3.0]."""
         engine = ScoringEngine()
         # Create extreme scores to trigger clipping
         data = [
@@ -160,7 +152,6 @@ class TestScoringEngineNormalCases:
         assert result_b["final_score"] == 3.0
     
     def test_clipping_with_confidence_adjustment(self):
-        """Test clipping is applied AFTER confidence adjustment."""
         engine = ScoringEngine()
         # Extreme score with low confidence
         data = [
@@ -178,17 +169,13 @@ class TestScoringEngineNormalCases:
         assert result_b["final_score"] == 3.0
 
 
-class TestScoringEngineEdgeCases:
-    """Test edge cases and boundary conditions."""
-    
+class TestScoringEngineEdgeCases:    
     def test_empty_input_returns_empty_list(self):
-        """Test empty input list returns empty output."""
         engine = ScoringEngine()
         results = engine.process([])
         assert results == []
     
     def test_single_prediction_single_sector(self):
-        """Test single prediction is handled (normalized_score = 0)."""
         engine = ScoringEngine()
         data = [{"ticker": "AAPL", "raw_score": 5.0, "confidence": 0.8, "sector": "tech"}]
         
@@ -202,7 +189,6 @@ class TestScoringEngineEdgeCases:
         assert results[0]["excluded"] is True
     
     def test_zero_variance_sector_all_identical(self):
-        """Test sector with identical scores (normalized_score = 0 for all)."""
         engine = ScoringEngine()
         data = [
             {"ticker": "A", "raw_score": 5.0, "confidence": 0.8, "sector": "tech"},
@@ -219,7 +205,6 @@ class TestScoringEngineEdgeCases:
         assert all(r["excluded"] for r in results)
     
     def test_confidence_exactly_at_threshold_030(self):
-        """Test confidence exactly at 0.3 (boundary condition - should pass)."""
         engine = ScoringEngine()
         data = [
             {"ticker": "A", "raw_score": 1.0, "confidence": 0.3, "sector": "tech"},
@@ -235,7 +220,6 @@ class TestScoringEngineEdgeCases:
                 assert "confidence" not in r["exclusion_reason"] or "0.3" not in r["exclusion_reason"]
     
     def test_confidence_just_below_threshold(self):
-        """Test confidence at 0.29 (just below threshold - should fail)."""
         engine = ScoringEngine()
         data = [
             {"ticker": "A", "raw_score": 1.0, "confidence": 0.29, "sector": "tech"},
@@ -249,10 +233,8 @@ class TestScoringEngineEdgeCases:
         assert all("confidence" in r["exclusion_reason"] for r in results)
     
     def test_normalized_score_exactly_at_magnitude_threshold(self):
-        """Test normalized score exactly at + or -0.5 magnitude (boundary - should pass)."""
         engine = ScoringEngine()
         
-        # Let's test the boundary more carefully
         # For exact 0.5, we need raw = mean + or - 0.5*stddev
         data = [
             {"ticker": "A", "raw_score": 8.0, "confidence": 0.5, "sector": "tech"},
@@ -263,9 +245,9 @@ class TestScoringEngineEdgeCases:
         results = engine.process(data)
         
         # Mean=10, variance=8/3, stddev~1.633
-        # A: (8-10)/1.633 ~ -1.225 (magnitude > 0.5) -> not excluded
-        # B: (10-10)/1.633 = 0 (magnitude < 0.5) -> excluded
-        # C: (12-10)/1.633 ~ 1.225 (magnitude > 0.5) -> not excluded
+        # A: (8-10)/1.633 (magnitude > 0.5) -> not excluded
+        # B: (10-10)/1.633 (magnitude < 0.5) -> excluded
+        # C: (12-10)/1.633 (magnitude > 0.5) -> not excluded
         
         result_map = {r["ticker"]: r for r in results}
         assert result_map["A"]["excluded"] is False  # Magnitude passes
@@ -273,7 +255,6 @@ class TestScoringEngineEdgeCases:
         assert result_map["C"]["excluded"] is False  # Magnitude passes
     
     def test_multiple_sectors_independent_normalization(self):
-        """Test each sector is normalized independently."""
         engine = ScoringEngine()
         data = [
             {"ticker": "A", "raw_score": 10.0, "confidence": 0.9, "sector": "tech"},
@@ -288,13 +269,12 @@ class TestScoringEngineEdgeCases:
         
         # Tech: mean=15, A gets negative normalized, B gets positive
         # Finance: mean=150, C gets negative normalized, D gets positive
-        # The pattern should be similar within each sector
         assert result_map["A"]["final_score"] < 0
         assert result_map["B"]["final_score"] > 0
         assert result_map["C"]["final_score"] < 0
         assert result_map["D"]["final_score"] > 0
         
-        # Magnitudes should be similar within sectors (symmetric)
+        # Magnitudes should be similar within sectors
         tech_magnitude = abs(result_map["A"]["final_score"])
         finance_magnitude = abs(result_map["C"]["final_score"])
         
@@ -303,28 +283,23 @@ class TestScoringEngineEdgeCases:
 
 
 class TestScoringEngineInvalidInputs:
-    """Test invalid input handling."""
     
     def test_non_list_input_raises_type_error(self):
-        """Test non-list input raises TypeError."""
         engine = ScoringEngine()
         with pytest.raises(TypeError, match="must be a list"):
             engine.process("not a list")
     
     def test_dict_input_raises_type_error(self):
-        """Test dict input raises TypeError."""
         engine = ScoringEngine()
         with pytest.raises(TypeError, match="must be a list"):
             engine.process({"ticker": "A", "raw_score": 1.0})
     
     def test_none_input_raises_type_error(self):
-        """Test None input raises TypeError."""
         engine = ScoringEngine()
         with pytest.raises(TypeError, match="must be a list"):
             engine.process(None)
     
     def test_invalid_schema_missing_ticker_raises_value_error(self):
-        """Test missing ticker field raises ValueError."""
         engine = ScoringEngine()
         data = [{"raw_score": 1.0, "confidence": 0.5, "sector": "tech"}]
         
@@ -332,7 +307,6 @@ class TestScoringEngineInvalidInputs:
             engine.process(data)
     
     def test_invalid_schema_missing_raw_score_raises_value_error(self):
-        """Test missing raw_score field raises ValueError."""
         engine = ScoringEngine()
         data = [{"ticker": "A", "confidence": 0.5, "sector": "tech"}]
         
@@ -340,7 +314,6 @@ class TestScoringEngineInvalidInputs:
             engine.process(data)
     
     def test_invalid_schema_missing_confidence_raises_value_error(self):
-        """Test missing confidence field raises ValueError."""
         engine = ScoringEngine()
         data = [{"ticker": "A", "raw_score": 1.0, "sector": "tech"}]
         
@@ -348,7 +321,6 @@ class TestScoringEngineInvalidInputs:
             engine.process(data)
     
     def test_invalid_schema_missing_sector_raises_value_error(self):
-        """Test missing sector field raises ValueError."""
         engine = ScoringEngine()
         data = [{"ticker": "A", "raw_score": 1.0, "confidence": 0.5}]
         
@@ -356,7 +328,6 @@ class TestScoringEngineInvalidInputs:
             engine.process(data)
     
     def test_invalid_schema_ticker_wrong_type_raises_value_error(self):
-        """Test ticker as non-string raises ValueError."""
         engine = ScoringEngine()
         data = [{"ticker": 123, "raw_score": 1.0, "confidence": 0.5, "sector": "tech"}]
         
@@ -364,7 +335,6 @@ class TestScoringEngineInvalidInputs:
             engine.process(data)
     
     def test_invalid_schema_raw_score_wrong_type_raises_value_error(self):
-        """Test raw_score as string raises ValueError."""
         engine = ScoringEngine()
         data = [{"ticker": "A", "raw_score": "bad", "confidence": 0.5, "sector": "tech"}]
         
@@ -372,7 +342,6 @@ class TestScoringEngineInvalidInputs:
             engine.process(data)
     
     def test_invalid_schema_confidence_wrong_type_raises_value_error(self):
-        """Test confidence as string raises ValueError."""
         engine = ScoringEngine()
         data = [{"ticker": "A", "raw_score": 1.0, "confidence": "bad", "sector": "tech"}]
         
@@ -380,7 +349,6 @@ class TestScoringEngineInvalidInputs:
             engine.process(data)
     
     def test_invalid_schema_sector_wrong_type_raises_value_error(self):
-        """Test sector as non-string raises ValueError."""
         engine = ScoringEngine()
         data = [{"ticker": "A", "raw_score": 1.0, "confidence": 0.5, "sector": 123}]
         
@@ -388,7 +356,6 @@ class TestScoringEngineInvalidInputs:
             engine.process(data)
     
     def test_confidence_above_range_raises_value_error(self):
-        """Test confidence > 1.0 raises ValueError."""
         engine = ScoringEngine()
         data = [{"ticker": "A", "raw_score": 1.0, "confidence": 1.5, "sector": "tech"}]
         
@@ -396,7 +363,6 @@ class TestScoringEngineInvalidInputs:
             engine.process(data)
     
     def test_confidence_below_range_raises_value_error(self):
-        """Test confidence < 0.0 raises ValueError."""
         engine = ScoringEngine()
         data = [{"ticker": "A", "raw_score": 1.0, "confidence": -0.1, "sector": "tech"}]
         
@@ -404,7 +370,6 @@ class TestScoringEngineInvalidInputs:
             engine.process(data)
     
     def test_confidence_exactly_zero_is_valid(self):
-        """Test confidence = 0.0 is valid."""
         engine = ScoringEngine()
         data = [
             {"ticker": "A", "raw_score": 1.0, "confidence": 0.0, "sector": "tech"},
@@ -416,7 +381,6 @@ class TestScoringEngineInvalidInputs:
         assert all(r["excluded"] for r in results)
     
     def test_confidence_exactly_one_is_valid(self):
-        """Test confidence = 1.0 is valid."""
         engine = ScoringEngine()
         data = [
             {"ticker": "A", "raw_score": 1.0, "confidence": 1.0, "sector": "tech"},
@@ -429,10 +393,8 @@ class TestScoringEngineInvalidInputs:
 
 
 class TestScoringEngineOutputSchema:
-    """Test output schema compliance."""
     
     def test_output_has_all_required_fields(self):
-        """Test all output items have exactly the required fields."""
         engine = ScoringEngine()
         data = [
             {"ticker": "A", "raw_score": 1.0, "confidence": 0.8, "sector": "tech"},
@@ -446,7 +408,6 @@ class TestScoringEngineOutputSchema:
             assert set(result.keys()) == required_fields
     
     def test_output_field_types_correct(self):
-        """Test output field types match schema."""
         engine = ScoringEngine()
         data = [
             {"ticker": "A", "raw_score": 1.0, "confidence": 0.8, "sector": "tech"},
@@ -463,7 +424,6 @@ class TestScoringEngineOutputSchema:
             assert result["exclusion_reason"] is None or isinstance(result["exclusion_reason"], str)
     
     def test_excluded_false_has_null_exclusion_reason(self):
-        """Test non-excluded items have exclusion_reason = None."""
         engine = ScoringEngine()
         data = [
             {"ticker": "A", "raw_score": 1.0, "confidence": 0.9, "sector": "tech"},
@@ -477,7 +437,6 @@ class TestScoringEngineOutputSchema:
                 assert result["exclusion_reason"] is None
     
     def test_excluded_true_has_non_null_exclusion_reason(self):
-        """Test excluded items have non-null exclusion_reason."""
         engine = ScoringEngine()
         data = [
             {"ticker": "A", "raw_score": 2.0, "confidence": 0.1, "sector": "tech"},
@@ -492,7 +451,6 @@ class TestScoringEngineOutputSchema:
         assert len(result["exclusion_reason"]) > 0
     
     def test_final_score_is_float_not_int(self):
-        """Test final_score is always float, even for whole numbers."""
         engine = ScoringEngine()
         data = [{"ticker": "A", "raw_score": 5.0, "confidence": 0.8, "sector": "tech"}]
         
