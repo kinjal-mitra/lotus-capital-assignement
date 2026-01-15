@@ -7,7 +7,7 @@ class ScoringEngine:
     ScoringEngine v1.0.0
     Normalizes and scores predictions based on mathematical rules.
     
-    Implements exact logic from YAML specification with no creative additions.
+    Implements exact logic from YAML specification.
     """
     
     def process(self, predictions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
