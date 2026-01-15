@@ -3,8 +3,6 @@
 This submission implements a strict, compiler-style interpretation of the provided YAML specifications.
 In the system whenever the specification does not define behavior precisely, execution halts with a Python error.
 
-The goal of this submission is not to produce scores, but to validate whether the specification is deterministically implementable under the given Critical Constraints.
-
 All unit tests pass.
 ---
 
