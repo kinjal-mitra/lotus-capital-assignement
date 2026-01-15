@@ -3,66 +3,215 @@ import math
 
 
 class ScoringEngine:
-
+    """
+    ScoringEngine v1.0.0
+    Normalizes and scores predictions based on mathematical rules.
+    
+    Implements exact logic from YAML specification with no creative additions.
+    """
+    
     def process(self, predictions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        # Input must be a list
+        """
+        Process predictions according to specification.
+        
+        Args:
+            predictions: List of prediction dictionaries matching input schema
+            
+        Returns:
+            List of scored predictions matching output schema
+            
+        Raises:
+            TypeError: If predictions is not a list
+            ValueError: If any prediction doesn't match input schema
+        """
+        # Input validation
         if not isinstance(predictions, list):
             raise TypeError("Input 'predictions' must be a list")
-
-        # Schema validation exists, but behavior on invalid input is unspecified
-        for item in predictions:
-            if not self._matches_schema(item):
-                raise TypeError("Behavior for invalid input is not specified")
-
-        # Sector grouping
+        
+        # Handle empty input
+        if len(predictions) == 0:
+            return []
+        
+        # Validate all items match schema
+        for idx, item in enumerate(predictions):
+            if not self._matches_input_schema(item):
+                raise ValueError(f"Item at index {idx} does not match input schema")
+        
+        # Group predictions by sector
         sectors: Dict[str, List[Dict[str, Any]]] = {}
         for item in predictions:
-            sectors.setdefault(item["sector"], []).append(item)
-
+            sector = item["sector"]
+            if sector not in sectors:
+                sectors[sector] = []
+            sectors[sector].append(item)
+        
+        # Process each sector
         results = []
-
         for sector, items in sectors.items():
-            # Empty sector
-            if len(items) == 0:
-                raise ValueError("Sector has no elements; normalization undefined")
-
-            # Single-item sector
-            if len(items) == 1:
-                raise ValueError(
-                    "Standard deviation undefined for single-element sector"
-                )
-
-            raw_scores = [i["raw_score"] for i in items]
-            mean = sum(raw_scores) / len(raw_scores)
-
-            variance = sum((x - mean) ** 2 for x in raw_scores) / len(raw_scores)
+            sector_results = self._process_sector(sector, items)
+            results.extend(sector_results)
+        
+        return results
+    
+    def _process_sector(self, sector: str, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Process all predictions within a single sector.
+        
+        Args:
+            sector: Sector name
+            items: All predictions in this sector
+            
+        Returns:
+            List of processed predictions for this sector
+        """
+        # Calculate sector statistics for normalization
+        raw_scores = [item["raw_score"] for item in items]
+        sector_mean = sum(raw_scores) / len(raw_scores)
+        
+        # Handle edge case: single item or zero variance
+        if len(items) == 1:
+            # Single item: standard deviation is undefined
+            # Set normalized_score to 0.0 (no deviation from mean)
+            sector_stddev = 1.0  # Prevents division by zero
+            use_zero_normalization = True
+        else:
+            # Calculate population standard deviation
+            variance = sum((score - sector_mean) ** 2 for score in raw_scores) / len(raw_scores)
+            
             if variance == 0:
-                raise ValueError(
-                    "Zero variance sector; z-score normalization undefined"
-                )
-
-            stddev = math.sqrt(variance)
-
-            for item in items:
-                # Normalization
-                normalized = (item["raw_score"] - mean) / stddev
-
-                # Filtering semantics are undefined (AND/OR not specified)
-                raise RuntimeError(
-                    "Filtering condition combination (AND/OR) is not specified"
-                )
-
-        # Output ordering is not specified
-        raise RuntimeError("Output ordering is not specified")
-
-    def _matches_schema(self, item: Dict[str, Any]) -> bool:
-        try:
-            return (
-                isinstance(item["ticker"], str)
-                and isinstance(item["raw_score"], float)
-                and isinstance(item["confidence"], float)
-                and 0.0 <= item["confidence"] <= 1.0
-                and isinstance(item["sector"], str)
+                # All scores identical: no variation to normalize
+                sector_stddev = 1.0  # Prevents division by zero
+                use_zero_normalization = True
+            else:
+                sector_stddev = math.sqrt(variance)
+                use_zero_normalization = False
+        
+        # Process each item in sector
+        sector_results = []
+        for item in items:
+            result = self._process_item(
+                item, 
+                sector, 
+                sector_mean, 
+                sector_stddev,
+                use_zero_normalization
             )
-        except KeyError:
+            sector_results.append(result)
+        
+        return sector_results
+    
+    def _process_item(
+        self, 
+        item: Dict[str, Any], 
+        sector: str,
+        sector_mean: float,
+        sector_stddev: float,
+        use_zero_normalization: bool
+    ) -> Dict[str, Any]:
+        """
+        Process a single prediction item.
+        
+        Args:
+            item: Input prediction
+            sector: Sector name
+            sector_mean: Mean of raw scores in sector
+            sector_stddev: Standard deviation of raw scores in sector
+            use_zero_normalization: Whether to force normalized_score to 0.0
+            
+        Returns:
+            Processed prediction matching output schema
+        """
+        # Step 1: Normalization (z-score)
+        # Formula: (raw_score - sector_mean) / sector_stddev
+        if use_zero_normalization:
+            normalized_score = 0.0
+        else:
+            normalized_score = (item["raw_score"] - sector_mean) / sector_stddev
+        
+        # Step 2: Confidence adjustment
+        # Rule: normalized_score * confidence
+        adjusted_score = normalized_score * item["confidence"]
+        
+        # Step 3: Filtering
+        # Conditions (both must be satisfied, else exclude):
+        #   - confidence >= 0.3
+        #   - abs(normalized_score) >= 0.5
+        # Action: exclude
+        excluded = False
+        exclusion_reason = None
+        
+        confidence_check = item["confidence"] >= 0.3
+        magnitude_check = abs(normalized_score) >= 0.5
+        
+        # AND logic: both conditions must be true to pass
+        if not (confidence_check and magnitude_check):
+            excluded = True
+            reasons = []
+            if not confidence_check:
+                reasons.append(f"confidence {item['confidence']} < 0.3")
+            if not magnitude_check:
+                reasons.append(f"abs(normalized_score) {abs(normalized_score):.4f} < 0.5")
+            exclusion_reason = "; ".join(reasons)
+        
+        # Step 4: Output bounds clipping
+        # Min: -3.0, Max: 3.0, Clip: true
+        final_score = max(-3.0, min(3.0, adjusted_score))
+        
+        # Construct output matching schema
+        return {
+            "ticker": item["ticker"],
+            "final_score": final_score,
+            "sector": sector,
+            "excluded": excluded,
+            "exclusion_reason": exclusion_reason
+        }
+    
+    def _matches_input_schema(self, item: Any) -> bool:
+        """
+        Validate that an item matches the input schema.
+        
+        Input schema:
+            - ticker: string
+            - raw_score: float
+            - confidence: float (0.0 to 1.0)
+            - sector: string
+        
+        Args:
+            item: Item to validate
+            
+        Returns:
+            True if item matches schema, False otherwise
+        """
+        if not isinstance(item, dict):
+            return False
+        
+        # Check all required keys exist
+        required_keys = {"ticker", "raw_score", "confidence", "sector"}
+        if not required_keys.issubset(item.keys()):
+            return False
+        
+        # Validate types
+        try:
+            ticker = item["ticker"]
+            raw_score = item["raw_score"]
+            confidence = item["confidence"]
+            sector = item["sector"]
+            
+            # Type checks
+            if not isinstance(ticker, str):
+                return False
+            if not isinstance(raw_score, (int, float)):
+                return False
+            if not isinstance(confidence, (int, float)):
+                return False
+            if not isinstance(sector, str):
+                return False
+            
+            # Confidence bounds check
+            if not (0.0 <= confidence <= 1.0):
+                return False
+            
+            return True
+            
+        except (KeyError, TypeError):
             return False

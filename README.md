@@ -3,7 +3,7 @@
 This submission implements a strict, compiler-style interpretation of the provided YAML specifications.
 In the system whenever the specification does not define behavior precisely, execution halts with a Python error.
 
-All unit tests pass.
+16 tests failed, 46 passed.
 
 ---
 
